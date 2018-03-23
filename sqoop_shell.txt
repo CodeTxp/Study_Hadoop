@@ -1,0 +1,61 @@
+下载地址：http://archive.cloudera.com/cdh5/cdh/5/sqoop-1.4.5-cdh5.3.6.tar.gz
+参考：
+	http://archive.cloudera.com/cdh5/cdh/5/sqoop-1.4.5-cdh5.3.6/SqoopUserGuide.html
+	https://cwiki.apache.org/confluence/display/SQOOP/Home
+
+一、Sqoop安装步骤
+	1. 下载
+	2. 解压
+	3. copy mysql的驱动类到lib文件夹中
+		cp ~/bigdater/hive-0.13.1-cdh5.3.6/lib/mysql-connector-java-5.1.31.jar ./lib/
+		或者
+		cp ~/bigdater/softs/mysql-connector-java-5.1.31.jar ./lib/
+	4. copy hadoop的hadoop-common-2.5.0-cdh5.3.6.jar hadoop-hdfs-2.5.0-cdh5.3.6.jar hadoop-mapreduce-client-core-2.5.0-cdh5.3.6.jar三个jar到lib文件夹中。
+		cp ~/bigdater/hadoop-2.5.0-cdh5.3.6/share/hadoop/common/hadoop-common-2.5.0-cdh5.3.6.jar ./lib/
+		cp ~/bigdater/hadoop-2.5.0-cdh5.3.6/share/hadoop/hdfs/hadoop-hdfs-2.5.0-cdh5.3.6.jar ./lib/
+		cp ~/bigdater/hadoop-2.5.0-cdh5.3.6/share/hadoop/mapreduce/hadoop-mapreduce-client-core-2.5.0-cdh5.3.6.jar ./lib/
+	5. 配置sqoop-env.sh文件内容，
+		vim conf/sqoop-env.sh
+		内容如下：
+		export HADOOP_COMMON_HOME=/home/hadoop/bigdater/hadoop-2.5.0-cdh5.3.6
+		export HADOOP_MAPRED_HOME=/home/hadoop/bigdater/hadoop-2.5.0-cdh5.3.6
+		export HBASE_HOME=/home/hadoop/bigdater/hbase-0.98.6-cdh5.3.6
+		export HIVE_HOME=/home/hadoop/bigdater/hive-0.13.1-cdh5.3.6
+	6. 添加sqoop常量导用户环境变量中去
+		vim ~/.bash_profile
+		在最后添加内容(如下)：
+		###### sqoop
+		export SQOOP_HOME=/home/hadoop/bigdater/sqoop-1.4.5-cdh5.3.6
+		export PATH=$PATH:$SQOOP_HOME/bin
+		退出保存后执行命令source ~/.bash_profile
+	7. 测试是否安装成功sqoop version
+
+二、Sqoop命令案例介绍
+	1、import命令
+案例1：将mysql表test中的数据导入hive的hivetest表，hive的hivetest表不存在。
+	sqoop import --connect jdbc:mysql://hh:3306/test --username hive --password hive --table test --hive-table hivetest --hive-import -m 1
+
+案例2：在案例1的基础上，分别进行overwrite（覆盖）导入和into(直接加入)导入。	
+	into： 命令同案例1
+	overwrite:
+		sqoop import --connect jdbc:mysql://hh:3306/test --username hive --password hive --table test --hive-table hivetest --hive-import -m 1 --hive-overwrite
+案例3：在案例2的基础上，通过增加mysql的test表数据，增量导入到hive表中。
+	sqoop import --connect jdbc:mysql://hh:3306/test --username hive --password hive --table test --where "id>9" --hive-table hivetest --hive-import -m 1
+	或者
+	sqoop import --connect jdbc:mysql://hh:3306/test --username hive --password hive --table test --query "select id,name from test where id>9" --hive-table hivetest --hive-import -m 1
+案例4：将test表中的数据导出到使用','分割字段的hive表（hivetest2）中。
+	创建表： create table hivetest2(id int,name string) row format delimited fields terminated by ',';
+	sqoop：
+		sqoop import --connect jdbc:mysql://hh:3306/test --username hive --password hive --table test --hive-table hivetest2 --hive-import -m 1 --fields-terminated-by ","
+案例5：将test表的数据导入到hdfs中。
+	sqoop import --connect jdbc:mysql://hh:3306/test --username hive --password hive --table test --target-dir /test -m 1
+案例6：在案例5的基础上，增量导入数据到hdfs中。
+	sqoop import --connect jdbc:mysql://hh:3306/test --username hive --password hive --table test --target-dir /test -m 1 --check-column id --incremental append --last-value 11
+
+	2、export命令
+案例1：将hdfs上的文件导出到关系型数据库test2表中。
+	sqoop export --connect jdbc:mysql://hh:3306/test --username hive --password hive --table test2 --export-dir /test
+案例2：将hive表（hivetest）数据导出到关系型数据库test2表中(使用insertOrUpdate方法导入)。
+	hivetest表只留id为1,2,3,4,5的数据，其他数据删除。
+	hivetest表分隔方式是'\u0001'，但是export命令默认使用','分隔数据
+	sqoop export --connect jdbc:mysql://hh:3306/test --username hive --password hive --table test2 --export-dir /hive/hivetest --input-fields-terminated-by "\\01" --update-mode allowinsert --update-key id 
